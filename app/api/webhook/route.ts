@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
   const branch   = payload.ref.replace("refs/heads/", "");
   const repoGhId = payload.repository.id;
 
-  const repo = await prisma.repository.findUnique({
-    where:   { githubId: repoGhId },
-    include: { user: { select: { id: true } } },
-  });
-
+// app/api/webhook/route.ts line 52-55
+const repo = await prisma.repository.findFirst({
+  where: { githubId: repoGhId },
+  include: { user: { select: { id: true } } },
+});
   if (!repo || !repo.active) {
     return NextResponse.json({ ok: true, skipped: "repo not tracked" });
   }
