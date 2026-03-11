@@ -25,11 +25,12 @@ const nextConfig = {
             key: "Content-Security-Policy",
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline'", // unsafe-eval needed by Next.js dev
+              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://vercel.live",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: https://avatars.githubusercontent.com",
-              "connect-src 'self' https://api.anthropic.com https://api.github.com https://*.ingest.inngest.com",
+              "img-src 'self' data: https://avatars.githubusercontent.com https://vercel.live https://vercel.com",
+              "connect-src 'self' https://api.anthropic.com https://api.github.com https://*.ingest.inngest.com https://vercel.live https://*.vercel.live wss://*.vercel.live https://fonts.googleapis.com https://fonts.gstatic.com",
+              "frame-src https://vercel.live",
               "frame-ancestors 'none'",
             ].join("; "),
           },

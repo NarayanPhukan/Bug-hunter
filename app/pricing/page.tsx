@@ -93,7 +93,8 @@ const FEATURE_ROWS = [
 ];
 
 export default async function PricingPage() {
-  const session = await auth();
+  let session = null;
+  try { session = await auth(); } catch { /* auth unavailable */ }
 
   return (
     <div className="min-h-screen bg-bg">

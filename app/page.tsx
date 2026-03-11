@@ -3,7 +3,8 @@ import Link from "next/link";
 import { auth } from "@/auth";
 
 export default async function HomePage() {
-  const session = await auth();
+  let session = null;
+  try { session = await auth(); } catch { /* auth unavailable — show logged-out view */ }
 
   return (
     <div className="min-h-screen bg-bg overflow-hidden">
