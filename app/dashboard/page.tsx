@@ -1,20 +1,22 @@
 // app/dashboard/page.tsx
-import { auth }           from "@/auth";
-import { prisma }         from "@/lib/prisma";
-import { getPlan }        from "@/lib/plans";
-import DashboardClient    from "@/components/dashboard/DashboardClient";
+
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { getPlan } from "@/lib/plans";
+import DashboardClient from "@/components/dashboard/DashboardClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
+
   const session = await auth();
   if (!session?.user?.id) return null;
 
   const userId = session.user.id;
-  const plan   = session.user.plan ?? "free";
+  const plan = session.user.plan ?? "free";
   const planCfg = getPlan(plan);
 
-  // ── Parallel data fetch ───────────────────────────────
+  // Dates
   const startOfMonth = new Date();
   startOfMonth.setDate(1);
   startOfMonth.setHours(0, 0, 0, 0);
@@ -22,64 +24,84 @@ export default async function DashboardPage() {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  const [repos, recentCommits, riskCounts, dailyStats, monthlyCommitCount] =
+  // ── First batch of parallel queries ─────────────────
+  const [repos, recentCommits, riskCounts, monthlyCommitCount] =
     await Promise.all([
-      // Repos
+
+      // Repositories
       prisma.repository.findMany({
-        where:   { userId, active: true },
+        where: { userId, active: true },
         include: {
-          _count:  { select: { commits: true } },
+          _count: { select: { commits: true } },
           commits: {
             orderBy: { createdAt: "desc" },
-            take:    1,
-            select:  { riskLevel: true, createdAt: true, message: true },
+            take: 1,
+            select: {
+              riskLevel: true,
+              createdAt: true,
+              message: true,
+            },
           },
         },
         orderBy: { updatedAt: "desc" },
       }),
 
-      // Recent commits across all repos
+      // Recent commits
       prisma.commit.findMany({
-        where:   { repository: { userId, active: true } },
+        where: { repository: { userId, active: true } },
         orderBy: { createdAt: "desc" },
-        take:    30,
+        take: 30,
         include: {
-          repository: { select: { fullName: true, owner: true, name: true } },
-          files:      { select: { filename: true, status: true }, take: 5 },
+          repository: {
+            select: { fullName: true, owner: true, name: true },
+          },
+          files: {
+            select: { filename: true, status: true },
+            take: 5,
+          },
         },
       }),
 
       // Risk distribution
       prisma.commit.groupBy({
-        by:    ["riskLevel"],
+        by: ["riskLevel"],
         where: { repository: { userId, active: true } },
         _count: { riskLevel: true },
       }),
 
-      // 7-day chart data
-      prisma.dailyStats.findMany({
-        where: {
-          repository: { userId },
-          date:       { gte: sevenDaysAgo },
-        },
-        orderBy: { date: "asc" },
-      }),
-
-      // Monthly usage for plan meter
+      // Monthly commit usage
       prisma.commit.count({
         where: {
           repository: { userId, active: true },
-          createdAt:  { gte: startOfMonth },
-          riskLevel:  { notIn: ["PENDING", "FAILED"] },
+          createdAt: { gte: startOfMonth },
+          riskLevel: { notIn: ["PENDING", "FAILED"] },
         },
       }),
     ]);
 
+  // ── Fix for DailyStats Query ─────────────────
+  const repoIds = repos.map((repo) => repo.id);
+
+  const dailyStats = await prisma.dailyStats.findMany({
+    where: {
+      repositoryId: {
+        in: repoIds,
+      },
+      date: {
+        gte: sevenDaysAgo,
+      },
+    },
+    orderBy: {
+      date: "asc",
+    },
+  });
+
+  // Usage object
   const usage = {
-    repos:        repos.length,
-    commits:      monthlyCommitCount,
-    repoLimit:    planCfg.repoLimit   === Infinity ? null : planCfg.repoLimit,
-    commitLimit:  planCfg.commitLimit === Infinity ? null : planCfg.commitLimit,
+    repos: repos.length,
+    commits: monthlyCommitCount,
+    repoLimit: planCfg.repoLimit === Infinity ? null : planCfg.repoLimit,
+    commitLimit: planCfg.commitLimit === Infinity ? null : planCfg.commitLimit,
     plan,
   };
 

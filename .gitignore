@@ -7,3 +7,4 @@ node_modules/
 *.tsbuildinfo
 prisma/dev.db
 .env
+.env
