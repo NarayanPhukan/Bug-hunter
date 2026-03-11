@@ -21,7 +21,7 @@ export default async function DashboardPage() {
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-  // Step 1: fetch repos to get IDs
+  // Step 1: repos (needed for repoIds)
   const repos = await prisma.repository.findMany({
     where: { userId, active: true },
     include: {
@@ -37,7 +37,7 @@ export default async function DashboardPage() {
 
   const repoIds = repos.map((r) => r.id);
 
-  // Step 2: everything else in parallel
+  // Step 2: everything else in parallel, all using repoIds
   const [recentCommits, riskCounts, dailyStats, monthlyCommitCount] =
     await Promise.all([
       prisma.commit.findMany({
@@ -49,13 +49,11 @@ export default async function DashboardPage() {
           files: { select: { filename: true, status: true }, take: 5 },
         },
       }),
-
       prisma.commit.groupBy({
         by: ["riskLevel"],
         where: { repositoryId: { in: repoIds } },
         _count: { riskLevel: true },
       }),
-
       prisma.dailyStats.findMany({
         where: {
           repositoryId: { in: repoIds },
@@ -63,7 +61,6 @@ export default async function DashboardPage() {
         },
         orderBy: { date: "asc" },
       }),
-
       prisma.commit.count({
         where: {
           repositoryId: { in: repoIds },
@@ -83,12 +80,12 @@ export default async function DashboardPage() {
 
   return (
     <DashboardClient
-      repos={repos}
-      recentCommits={recentCommits}
-      riskCounts={riskCounts}
-      dailyStats={dailyStats}
-      usage={usage}
       user={session.user}
+      repos={JSON.parse(JSON.stringify(repos))}
+      recentCommits={JSON.parse(JSON.stringify(recentCommits))}
+      riskCounts={riskCounts}
+      dailyStats={JSON.parse(JSON.stringify(dailyStats))}
+      usage={usage}
     />
   );
 }
