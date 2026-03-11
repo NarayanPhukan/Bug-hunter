@@ -9,7 +9,6 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  // Fetch user's repos with last commit info
   const repos = await prisma.repository.findMany({
     where:   { userId: session.user.id, active: true },
     include: {
@@ -23,7 +22,6 @@ export default async function DashboardPage() {
     orderBy: { updatedAt: "desc" },
   });
 
-  // Fetch recent commits across all repos
   const recentCommits = await prisma.commit.findMany({
     where:   { repository: { userId: session.user.id, active: true } },
     orderBy: { createdAt: "desc" },
@@ -34,19 +32,20 @@ export default async function DashboardPage() {
     },
   });
 
-  // Risk breakdown totals
   const riskCounts = await prisma.commit.groupBy({
     by:    ["riskLevel"],
     where: { repository: { userId: session.user.id, active: true } },
     _count: { riskLevel: true },
   });
 
-  // Daily stats (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  // Get user's repo IDs first, then filter dailyStats by repositoryId
+  const userRepoIds = repos.map(r => r.id);
   const dailyStats = await prisma.dailyStats.findMany({
     where:   {
-      repository: { userId: session.user.id, active: true },
+      repositoryId: { in: userRepoIds },
       date: { gte: sevenDaysAgo },
     },
     orderBy: { date: "asc" },
