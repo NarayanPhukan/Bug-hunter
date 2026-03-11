@@ -22,26 +22,26 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
 
   return (
     <div className="fixed inset-0 bg-bg/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-bg2 border border-border rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl">
+      <div className="bg-bg2 border border-border rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl animate-scale-in">
 
         {/* Header */}
         <div className="flex items-start justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <div className="flex items-start gap-4">
-            <div
-              className="mt-0.5 text-[9px] font-bold px-2 py-1 rounded border tracking-widest font-mono flex-shrink-0"
-              style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}
+            <span
+              className="mt-0.5 text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0"
+              style={{ color: cfg.color, background: cfg.bg }}
             >
               {commit.riskLevel}
-            </div>
+            </span>
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <code className="text-[10px] text-blue bg-bg px-1.5 py-0.5 rounded border border-border">
+                <code className="text-[11px] text-cyan bg-bg3 px-2 py-0.5 rounded-md border border-border font-mono">
                   {shortSha(commit.sha)}
                 </code>
-                <span className="text-dim text-xs font-sans">{commit.repository?.fullName}</span>
+                <span className="text-text3 text-xs">{commit.repository?.fullName}</span>
               </div>
-              <p className="text-sm text-textmain font-sans font-medium leading-snug">{commit.message}</p>
-              <div className="flex gap-4 mt-1.5 text-[10px] text-dim">
+              <p className="text-sm text-text font-medium leading-snug">{commit.message}</p>
+              <div className="flex gap-4 mt-1.5 text-[11px] text-text3">
                 <span>{commit.authorName}</span>
                 <span>{commit.filesChanged} files changed</span>
                 <span>+{commit.additions} / -{commit.deletions}</span>
@@ -49,19 +49,19 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="text-dim hover:text-textmain text-xl leading-none ml-4">×</button>
+          <button onClick={onClose} className="text-text3 hover:text-text text-xl leading-none ml-4 transition-colors">×</button>
         </div>
 
         {/* Recommendation banner */}
         {commit.recommendation && (
           <div
-            className="px-6 py-2.5 flex items-center gap-3 text-xs font-mono border-b border-border flex-shrink-0"
-            style={{ background: cfg.bg, borderColor: cfg.border + "66" }}
+            className="px-6 py-3 flex items-center gap-3 text-xs border-b border-border flex-shrink-0"
+            style={{ background: cfg.bg }}
           >
             <span style={{ color: cfg.color }}>▶</span>
-            <span className="text-textmain">{commit.recommendation}</span>
+            <span className="text-text">{commit.recommendation}</span>
             {commit.confidence != null && (
-              <span className="ml-auto" style={{ color: cfg.color }}>
+              <span className="ml-auto font-semibold" style={{ color: cfg.color }}>
                 {commit.confidence}% confidence
               </span>
             )}
@@ -74,13 +74,13 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
             <button
               key={t}
               onClick={() => setTab(t)}
-              className="px-5 py-2.5 text-[10px] font-mono tracking-widest border-b-2 transition-colors"
+              className="px-5 py-3 text-xs font-semibold border-b-2 transition-colors capitalize"
               style={{
                 borderBottomColor: tab === t ? cfg.color : "transparent",
-                color: tab === t ? cfg.color : "#5a7090",
+                color: tab === t ? cfg.color : "#475569",
               }}
             >
-              {t.toUpperCase()}
+              {t}
             </button>
           ))}
         </div>
@@ -93,9 +93,9 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
             <>
               {bugs.length === 0 && commit.riskLevel === "SAFE" && (
                 <div className="flex flex-col items-center justify-center py-8 gap-3 text-center">
-                  <div className="text-4xl text-green">✓</div>
-                  <div className="text-green font-display font-bold tracking-widest">SAFE TO DEPLOY</div>
-                  <div className="text-dim text-xs font-sans max-w-xs">
+                  <div className="w-16 h-16 rounded-2xl bg-green/10 border border-green/20 flex items-center justify-center text-3xl">✓</div>
+                  <div className="text-green font-display font-bold text-lg">Safe to deploy</div>
+                  <div className="text-text3 text-sm max-w-xs">
                     No significant bugs, security issues, or regressions detected in this commit.
                   </div>
                 </div>
@@ -103,33 +103,33 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
 
               {bugs.length > 0 && (
                 <div>
-                  <div className="text-[10px] text-dim tracking-widest mb-3">── PREDICTED BUGS ({bugs.length})</div>
+                  <div className="text-xs font-semibold text-text3 uppercase tracking-wider mb-3">Predicted bugs ({bugs.length})</div>
                   <div className="space-y-3">
                     {bugs.map((bug, i) => {
                       const sev = getRiskConfig(bug.severity.toUpperCase());
                       return (
                         <div
                           key={i}
-                          className="border rounded-lg p-4"
+                          className="border rounded-xl p-4"
                           style={{ borderColor: sev.border, background: sev.bg }}
                         >
                           <div className="flex items-start justify-between gap-3 mb-2">
                             <div className="flex items-center gap-2">
                               <span className="text-base">{CATEGORY_ICON[bug.category] || "◈"}</span>
-                              <span className="text-sm font-sans font-semibold" style={{ color: sev.color }}>
+                              <span className="text-sm font-semibold" style={{ color: sev.color }}>
                                 {bug.title}
                               </span>
                             </div>
                             <span
-                              className="text-[9px] border px-2 py-0.5 rounded font-mono tracking-widest flex-shrink-0"
-                              style={{ color: sev.color, borderColor: sev.border }}
+                              className="text-[10px] font-bold px-2 py-0.5 rounded-md flex-shrink-0"
+                              style={{ color: sev.color, background: sev.bg }}
                             >
                               {bug.severity.toUpperCase()}
                             </span>
                           </div>
-                          <p className="text-xs text-textmain font-sans leading-relaxed">{bug.description}</p>
+                          <p className="text-xs text-text leading-relaxed">{bug.description}</p>
                           {(bug.file || bug.line) && (
-                            <div className="flex gap-3 mt-2 text-[10px] text-dim font-mono">
+                            <div className="flex gap-3 mt-2 text-[11px] text-text3 font-mono">
                               {bug.file && <span>📄 {bug.file}</span>}
                               {bug.line && <span>L{bug.line}</span>}
                             </div>
@@ -143,12 +143,12 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
 
               {systems.length > 0 && (
                 <div>
-                  <div className="text-[10px] text-dim tracking-widest mb-3">── AFFECTED SYSTEMS</div>
+                  <div className="text-xs font-semibold text-text3 uppercase tracking-wider mb-3">Affected systems</div>
                   <div className="flex flex-wrap gap-2">
                     {systems.map((s, i) => (
                       <span
                         key={i}
-                        className="text-xs border px-3 py-1.5 rounded font-sans"
+                        className="text-xs border px-3 py-1.5 rounded-lg"
                         style={{ color: cfg.color, borderColor: cfg.border, background: cfg.bg }}
                       >
                         {s}
@@ -161,15 +161,15 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
               {/* Files changed */}
               {commit.files?.length > 0 && (
                 <div>
-                  <div className="text-[10px] text-dim tracking-widest mb-3">── FILES CHANGED</div>
+                  <div className="text-xs font-semibold text-text3 uppercase tracking-wider mb-3">Files changed</div>
                   <div className="space-y-1">
                     {commit.files.map((f: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between text-xs bg-bg px-3 py-2 rounded border border-border font-mono">
-                        <span className="text-textmain">{f.filename}</span>
-                        <div className="flex gap-3 text-[10px]">
+                      <div key={i} className="flex items-center justify-between text-xs bg-bg3/50 px-4 py-2.5 rounded-xl border border-border font-mono">
+                        <span className="text-text">{f.filename}</span>
+                        <div className="flex gap-3 text-[11px]">
                           <span className="text-green">+{f.additions}</span>
                           <span className="text-red">-{f.deletions}</span>
-                          <span className="text-dim capitalize">{f.status}</span>
+                          <span className="text-text3 capitalize">{f.status}</span>
                         </div>
                       </div>
                     ))}
@@ -185,14 +185,14 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
               {commit.files?.length > 0 ? (
                 commit.files.map((f: any, fi: number) => (
                   <div key={fi} className="mb-4">
-                    <div className="flex items-center justify-between px-3 py-2 bg-bg3 border border-border rounded-t text-[10px] font-mono">
-                      <span className="text-textmain">{f.filename}</span>
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-bg3 border border-border rounded-t-xl text-[11px] font-mono">
+                      <span className="text-text">{f.filename}</span>
                       <div className="flex gap-3">
                         <span className="text-green">+{f.additions}</span>
                         <span className="text-red">-{f.deletions}</span>
                       </div>
                     </div>
-                    <div className="border border-t-0 border-border rounded-b overflow-x-auto">
+                    <div className="border border-t-0 border-border rounded-b-xl overflow-x-auto">
                       {f.patch ? (
                         f.patch.split("\n").map((line: string, li: number) => {
                           const cls = line.startsWith("+") ? "diff-add"
@@ -200,19 +200,19 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
                             : line.startsWith("@@") ? "diff-hunk"
                             : "diff-meta";
                           return (
-                            <div key={li} className={`${cls} px-3 py-0.5 text-[11px] font-mono whitespace-pre`}>
+                            <div key={li} className={`${cls} px-4 py-0.5 text-[11px] font-mono whitespace-pre`}>
                               {line || " "}
                             </div>
                           );
                         })
                       ) : (
-                        <div className="px-3 py-3 text-dim text-xs">No patch available</div>
+                        <div className="px-4 py-3 text-text3 text-xs">No patch available</div>
                       )}
                     </div>
                   </div>
                 ))
               ) : (
-                <div className="text-dim text-xs text-center py-8 font-sans">
+                <div className="text-text3 text-sm text-center py-8">
                   File diff data not available — commit was received via webhook without detailed patches
                 </div>
               )}
@@ -222,8 +222,8 @@ export default function CommitDetail({ commit, onClose }: { commit: any; onClose
           {/* ── RAW TAB ── */}
           {tab === "raw" && (
             <div>
-              <div className="text-[10px] text-dim tracking-widest mb-3">── RAW CLAUDE RESPONSE</div>
-              <pre className="text-xs text-textmain font-mono bg-bg p-4 rounded border border-border overflow-x-auto whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs font-semibold text-text3 uppercase tracking-wider mb-3">Raw Claude response</div>
+              <pre className="text-xs text-text font-mono bg-bg3/50 p-4 rounded-xl border border-border overflow-x-auto whitespace-pre-wrap leading-relaxed">
                 {commit.analysisRaw || "No raw response stored"}
               </pre>
             </div>

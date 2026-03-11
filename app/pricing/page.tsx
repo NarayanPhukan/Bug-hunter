@@ -237,7 +237,7 @@ export default async function PricingPage() {
                   const isCheck = val === "✓";
                   const isDash  = val === "—";
                   return (
-                    <div key={p.name} className={`px-6 py-3.5 text-center text-sm ${p.highlight ? "bg-indigo/3" : ""}`}>
+                    <div key={p.name} className={`px-6 py-3.5 text-center text-sm ${p.highlight ? "bg-indigo/[0.03]" : ""}`}>
                       <span className={`font-medium ${isCheck ? "text-green" : isDash ? "text-text3 opacity-30" : "text-text2"}`}>
                         {val}
                       </span>

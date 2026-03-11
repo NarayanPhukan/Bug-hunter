@@ -18,6 +18,16 @@ interface Props {
 
 const RISKS = ["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW", "SAFE", "PENDING"];
 
+const RISK_COLORS: Record<string, { color: string; bg: string; border: string }> = {
+  ALL:      { color: "#818cf8", bg: "rgba(99,102,241,0.08)", border: "rgba(99,102,241,0.3)" },
+  CRITICAL: { color: "#f43f5e", bg: "rgba(244,63,94,0.08)", border: "rgba(244,63,94,0.3)" },
+  HIGH:     { color: "#f97316", bg: "rgba(249,115,22,0.08)", border: "rgba(249,115,22,0.3)" },
+  MEDIUM:   { color: "#eab308", bg: "rgba(234,179,8,0.08)", border: "rgba(234,179,8,0.3)" },
+  LOW:      { color: "#22d3ee", bg: "rgba(34,211,238,0.08)", border: "rgba(34,211,238,0.3)" },
+  SAFE:     { color: "#22c55e", bg: "rgba(34,197,94,0.08)", border: "rgba(34,197,94,0.3)" },
+  PENDING:  { color: "#475569", bg: "rgba(71,85,105,0.08)", border: "rgba(71,85,105,0.3)" },
+};
+
 export default function CommitsClient({ commits, total, page, pages, repos, currentRepoId, currentRisk }: Props) {
   const router               = useRouter();
   const [selected, setSelected] = useState<any>(null);
@@ -31,10 +41,12 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
   }
 
   return (
-    <div className="space-y-5 animate-fade-in">
-      <div>
-        <h1 className="font-display text-xl font-bold text-textmain tracking-wider">COMMITS</h1>
-        <p className="text-dim text-xs mt-1 font-sans">{total.toLocaleString()} commits analyzed</p>
+    <div className="space-y-6 animate-fade-up">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-text">Commits</h1>
+          <p className="text-text3 text-sm mt-0.5">{total.toLocaleString()} commits analyzed</p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -42,7 +54,7 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
         <select
           value={currentRepoId || ""}
           onChange={e => navigate({ repoId: e.target.value, risk: currentRisk || "ALL" })}
-          className="bg-bg2 border border-border text-textmain text-xs rounded px-3 py-2 font-mono outline-none"
+          className="input-base max-w-[240px] text-sm py-2"
         >
           <option value="">All Repositories</option>
           {repos.map(r => <option key={r.id} value={r.id}>{r.fullName}</option>)}
@@ -50,17 +62,17 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
 
         <div className="flex gap-1.5">
           {RISKS.map(r => {
-            const cfg = r === "ALL" ? null : getRiskConfig(r);
+            const riskColor = RISK_COLORS[r] || RISK_COLORS.PENDING;
             const active = (currentRisk || "ALL") === r;
             return (
               <button
                 key={r}
                 onClick={() => navigate({ repoId: currentRepoId || "", risk: r })}
-                className="text-[9px] px-2.5 py-1 rounded border font-mono tracking-widest transition-all"
+                className="text-[10px] px-2.5 py-1 rounded-lg border font-semibold transition-all"
                 style={{
-                  color:       active ? (cfg?.color || "#00ff88") : "#5a7090",
-                  borderColor: active ? (cfg?.color || "#00ff88") : "#1a2535",
-                  background:  active ? (cfg?.bg    || "rgba(0,255,136,0.08)") : "transparent",
+                  color:       active ? riskColor.color : "#475569",
+                  borderColor: active ? riskColor.border : "#1e2d45",
+                  background:  active ? riskColor.bg : "transparent",
                 }}
               >{r}</button>
             );
@@ -69,20 +81,20 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
       </div>
 
       {/* Table */}
-      <div className="bg-bg2 border border-border rounded-lg overflow-hidden">
-        <div className="grid text-[9px] text-dim tracking-widest px-4 py-2 border-b border-border"
+      <div className="bg-bg2 border border-border rounded-2xl overflow-hidden">
+        <div className="grid text-[10px] text-text3 font-semibold uppercase tracking-wider px-5 py-3 border-b border-border bg-bg3/50"
           style={{ gridTemplateColumns: "80px 1fr 140px 80px 80px 60px" }}>
-          <span>RISK</span>
-          <span>COMMIT</span>
-          <span>REPO</span>
-          <span>AUTHOR</span>
-          <span>FILES</span>
-          <span>AGO</span>
+          <span>Risk</span>
+          <span>Commit</span>
+          <span>Repo</span>
+          <span>Author</span>
+          <span>Files</span>
+          <span>Time</span>
         </div>
 
         <div className="divide-y divide-border">
           {commits.length === 0 && (
-            <div className="py-12 text-center text-dim text-xs font-sans">No commits found</div>
+            <div className="py-12 text-center text-text3 text-sm">No commits found</div>
           )}
           {commits.map((c: any) => {
             const cfg  = getRiskConfig(c.riskLevel);
@@ -90,29 +102,29 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
             return (
               <div
                 key={c.id}
-                className="grid px-4 py-3 hover:bg-bg3 cursor-pointer transition-colors items-center text-xs"
+                className="grid px-5 py-3.5 hover:bg-bg3 cursor-pointer transition-colors items-center text-sm"
                 style={{ gridTemplateColumns: "80px 1fr 140px 80px 80px 60px" }}
                 onClick={() => setSelected(c)}
               >
                 <span>
                   <span
-                    className="text-[9px] border px-1.5 py-0.5 rounded font-mono tracking-widest"
-                    style={{ color: cfg.color, borderColor: cfg.border, background: cfg.bg }}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md"
+                    style={{ color: cfg.color, background: cfg.bg }}
                   >{c.riskLevel}</span>
                 </span>
                 <div className="min-w-0 pr-3">
                   <div className="flex items-center gap-2 mb-0.5">
-                    <code className="text-[10px] text-blue">{shortSha(c.sha)}</code>
+                    <code className="text-[11px] text-cyan font-mono">{shortSha(c.sha)}</code>
                     {bugs.length > 0 && (
-                      <span className="text-[9px] text-red">⚠ {bugs.length}</span>
+                      <span className="text-[10px] text-red font-semibold">⚠ {bugs.length}</span>
                     )}
                   </div>
-                  <p className="text-textmain font-sans truncate text-[11px]">{c.message}</p>
+                  <p className="text-text truncate text-xs">{c.message}</p>
                 </div>
-                <span className="text-dim font-sans text-[10px] truncate">{c.repository?.fullName}</span>
-                <span className="text-dim text-[10px] truncate">{c.authorName}</span>
-                <span className="text-dim text-[10px]">{c.filesChanged}</span>
-                <span className="text-dim text-[10px]">{timeAgo(c.createdAt)}</span>
+                <span className="text-text3 text-xs truncate">{c.repository?.fullName}</span>
+                <span className="text-text3 text-xs truncate">{c.authorName}</span>
+                <span className="text-text3 text-xs">{c.filesChanged}</span>
+                <span className="text-text3 text-xs">{timeAgo(c.createdAt)}</span>
               </div>
             );
           })}
@@ -121,20 +133,20 @@ export default function CommitsClient({ commits, total, page, pages, repos, curr
 
       {/* Pagination */}
       {pages > 1 && (
-        <div className="flex items-center justify-between text-xs text-dim">
+        <div className="flex items-center justify-between text-sm text-text3">
           <span>Page {page} of {pages} · {total} total</span>
           <div className="flex gap-2">
             {page > 1 && (
               <button
                 onClick={() => navigate({ repoId: currentRepoId || "", risk: currentRisk || "ALL", page: String(page - 1) })}
-                className="px-3 py-1.5 border border-border rounded hover:border-border2 transition-colors font-mono"
-              >← PREV</button>
+                className="btn-ghost text-xs px-4 py-2"
+              >← Prev</button>
             )}
             {page < pages && (
               <button
                 onClick={() => navigate({ repoId: currentRepoId || "", risk: currentRisk || "ALL", page: String(page + 1) })}
-                className="px-3 py-1.5 border border-border rounded hover:border-border2 transition-colors font-mono"
-              >NEXT →</button>
+                className="btn-ghost text-xs px-4 py-2"
+              >Next →</button>
             )}
           </div>
         </div>
