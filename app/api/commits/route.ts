@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
   const where: Prisma.CommitWhereInput = {
     repository: { userId: session.user.id, active: true },
     ...(repoId ? { repositoryId: repoId } : {}),
-    ...(risk ? { riskLevel: risk } : {}),
+    ...(risk ? { riskLevel: risk as Prisma.EnumRiskLevelFilter<"Commit"> } : {}),
   };
 
   const [commits, total] = await Promise.all([
