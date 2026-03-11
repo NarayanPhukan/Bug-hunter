@@ -26,13 +26,13 @@ export function safeDecryptToken(stored: string): string {
 }
 
 export const RISK_CONFIG = {
-  CRITICAL: { color: "#ff3355", bg: "rgba(255,51,85,0.1)",   border: "rgba(255,51,85,0.3)",   label: "CRITICAL", pulse: true  },
-  HIGH:     { color: "#ff8800", bg: "rgba(255,136,0,0.1)",   border: "rgba(255,136,0,0.3)",   label: "HIGH",     pulse: true  },
-  MEDIUM:   { color: "#ffcc00", bg: "rgba(255,204,0,0.08)",  border: "rgba(255,204,0,0.25)",  label: "MEDIUM",   pulse: false },
-  LOW:      { color: "#00aaff", bg: "rgba(0,170,255,0.08)",  border: "rgba(0,170,255,0.25)",  label: "LOW",      pulse: false },
-  SAFE:     { color: "#00ff88", bg: "rgba(0,255,136,0.08)",  border: "rgba(0,255,136,0.25)",  label: "SAFE",     pulse: false },
-  PENDING:  { color: "#5a7090", bg: "rgba(90,112,144,0.08)", border: "rgba(90,112,144,0.2)",  label: "PENDING",  pulse: false },
-  FAILED:   { color: "#5a7090", bg: "rgba(90,112,144,0.08)", border: "rgba(90,112,144,0.2)",  label: "FAILED",   pulse: false },
+  CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.08)",   border: "rgba(239,68,68,0.25)",   label: "CRITICAL", pulse: true  },
+  HIGH:     { color: "#f97316", bg: "rgba(249,115,22,0.08)",  border: "rgba(249,115,22,0.25)",  label: "HIGH",     pulse: true  },
+  MEDIUM:   { color: "#eab308", bg: "rgba(234,179,8,0.06)",   border: "rgba(234,179,8,0.2)",   label: "MEDIUM",   pulse: false },
+  LOW:      { color: "#22d3ee", bg: "rgba(34,211,238,0.06)",  border: "rgba(34,211,238,0.2)",  label: "LOW",      pulse: false },
+  SAFE:     { color: "#22c55e", bg: "rgba(34,197,94,0.06)",   border: "rgba(34,197,94,0.2)",   label: "SAFE",     pulse: false },
+  PENDING:  { color: "#5a5a72", bg: "rgba(90,90,114,0.06)",   border: "rgba(90,90,114,0.15)",  label: "PENDING",  pulse: false },
+  FAILED:   { color: "#5a5a72", bg: "rgba(90,90,114,0.06)",   border: "rgba(90,90,114,0.15)",  label: "FAILED",   pulse: false },
 } as const;
 
 export type RiskLevel = keyof typeof RISK_CONFIG;

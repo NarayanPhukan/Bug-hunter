@@ -101,12 +101,12 @@ export default async function PricingPage() {
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute inset-0 opacity-100"
           style={{
-            backgroundImage: "linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px)",
+            backgroundImage: "linear-gradient(rgba(124,92,252,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(124,92,252,0.03) 1px, transparent 1px)",
             backgroundSize: "64px 64px",
           }}
         />
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[400px] opacity-15"
-          style={{ background: "radial-gradient(ellipse at center top, #6366f1 0%, transparent 65%)" }} />
+          style={{ background: "radial-gradient(ellipse at center top, #7c5cfc 0%, transparent 65%)" }} />
       </div>
 
       {/* ── Nav ──────────────────────────────────────────── */}
