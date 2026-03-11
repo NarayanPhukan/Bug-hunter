@@ -1,14 +1,24 @@
 "use client";
 // components/dashboard/DashboardClient.tsx
 
-import { useState }    from "react";
+import { useState }     from "react";
+import Link             from "next/link";
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, BarChart, Bar, Cell,
 } from "recharts";
-import { timeAgo, shortSha, getRiskConfig } from "@/lib/utils";
-import AddRepoModal    from "./AddRepoModal";
-import CommitDetail    from "./CommitDetail";
+import CommitDetail     from "./CommitDetail";
+import AddRepoModal     from "./AddRepoModal";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+interface Usage {
+  repos:       number;
+  commits:     number;
+  repoLimit:   number | null;
+  commitLimit: number | null;
+  plan:        string;
+}
 
 interface Props {
   user:          { name?: string | null; image?: string | null };
@@ -16,285 +26,356 @@ interface Props {
   recentCommits: any[];
   riskCounts:    { riskLevel: string; _count: { riskLevel: number } }[];
   dailyStats:    any[];
+  usage:         Usage;
 }
 
-const RISK_ORDER = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "SAFE"];
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-export default function DashboardClient({ user, repos, recentCommits, riskCounts, dailyStats }: Props) {
-  const [filter,         setFilter]         = useState("ALL");
-  const [selectedCommit, setSelectedCommit] = useState<any>(null);
-  const [showAddRepo,    setShowAddRepo]     = useState(false);
-  const [commits,        setCommits]         = useState(recentCommits);
+const RISK_CFG = {
+  CRITICAL: { color: "#f43f5e", bg: "bg-red/10",    text: "text-red",    label: "CRITICAL" },
+  HIGH:     { color: "#f97316", bg: "bg-orange/10",  text: "text-orange", label: "HIGH"     },
+  MEDIUM:   { color: "#eab308", bg: "bg-yellow/10",  text: "text-yellow", label: "MEDIUM"   },
+  LOW:      { color: "#22d3ee", bg: "bg-cyan/10",    text: "text-cyan",   label: "LOW"      },
+  SAFE:     { color: "#22c55e", bg: "bg-green/10",   text: "text-green",  label: "SAFE"     },
+  PENDING:  { color: "#475569", bg: "bg-text3/10",   text: "text-text3",  label: "PENDING"  },
+  FAILED:   { color: "#475569", bg: "bg-text3/10",   text: "text-text3",  label: "FAILED"   },
+} as const;
 
-  // Aggregated stats
-  const totalScanned = riskCounts.reduce((a, b) => a + b._count.riskLevel, 0);
-  const critical     = riskCounts.find(r => r.riskLevel === "CRITICAL")?._count.riskLevel || 0;
-  const high         = riskCounts.find(r => r.riskLevel === "HIGH")?._count.riskLevel    || 0;
-  const safe         = riskCounts.find(r => r.riskLevel === "SAFE")?._count.riskLevel    || 0;
-  const bugsCaught   = riskCounts.filter(r => !["SAFE","PENDING","FAILED"].includes(r.riskLevel))
-    .reduce((a,b) => a + b._count.riskLevel, 0);
+function getRisk(r: string) {
+  return RISK_CFG[r as keyof typeof RISK_CFG] ?? RISK_CFG.PENDING;
+}
 
-  // Pie chart data
-  const pieData = RISK_ORDER.map(r => ({
-    name:  r,
-    value: riskCounts.find(x => x.riskLevel === r)?._count.riskLevel || 0,
-    color: getRiskConfig(r).color,
-  })).filter(d => d.value > 0);
+function timeAgo(date: string) {
+  const sec = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
+  if (sec < 60)    return `${sec}s ago`;
+  if (sec < 3600)  return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return `${Math.floor(sec / 86400)}d ago`;
+}
 
-  // Area chart — aggregate daily stats by date
-  const areaData = (() => {
-    const map: Record<string, { date: string; critical: number; high: number; safe: number }> = {};
-    dailyStats.forEach(s => {
-      const d = new Date(s.date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-      if (!map[d]) map[d] = { date: d, critical: 0, high: 0, safe: 0 };
-      map[d].critical += s.critical;
-      map[d].high     += s.high;
-      map[d].safe     += s.safe;
-    });
-    return Object.values(map);
-  })();
+function shortSha(sha: string) { return sha.slice(0, 7); }
 
-  const filteredCommits = commits.filter(c =>
-    filter === "ALL" || c.riskLevel === filter
+// ── Stat card ─────────────────────────────────────────────────────────────────
+
+function StatCard({
+  label, value, sub, accent = "text-text",
+}: {
+  label: string; value: string | number; sub?: string; accent?: string;
+}) {
+  return (
+    <div className="bg-bg2 border border-border rounded-2xl p-5">
+      <div className="text-xs font-medium text-text3 mb-2">{label}</div>
+      <div className={`font-display text-3xl font-bold mb-1 ${accent}`}>{value}</div>
+      {sub && <div className="text-xs text-text3">{sub}</div>}
+    </div>
   );
+}
+
+// ── Usage meter ───────────────────────────────────────────────────────────────
+
+function UsageMeter({
+  label, used, limit, plan,
+}: {
+  label: string; used: number; limit: number | null; plan: string;
+}) {
+  if (limit === null) {
+    return (
+      <div className="bg-bg2 border border-border rounded-2xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-xs font-medium text-text3">{label}</span>
+          <span className="text-xs text-text2 font-semibold">{used.toLocaleString()} <span className="text-text3 font-normal">/ ∞</span></span>
+        </div>
+        <div className="h-1.5 bg-bg4 rounded-full">
+          <div className="h-full w-full bg-indigo/30 rounded-full" />
+        </div>
+        <div className="text-[11px] text-text3 mt-2">Unlimited on your plan</div>
+      </div>
+    );
+  }
+
+  const pct     = Math.min((used / limit) * 100, 100);
+  const isWarn  = pct >= 80;
+  const barColor = pct >= 95 ? "#f43f5e" : pct >= 80 ? "#f97316" : "#6366f1";
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* ── Header ─────────────────────────────────────── */}
-      <div className="flex items-center justify-between">
+    <div className={`bg-bg2 border rounded-2xl p-5 ${isWarn ? "border-orange/30" : "border-border"}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-xs font-medium text-text3">{label}</span>
+        <span className={`text-xs font-semibold ${isWarn ? "text-orange" : "text-text2"}`}>
+          {used.toLocaleString()} <span className="text-text3 font-normal">/ {limit.toLocaleString()}</span>
+        </span>
+      </div>
+      <div className="h-1.5 bg-bg4 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, background: barColor }}
+        />
+      </div>
+      {isWarn && (
+        <div className="flex items-center justify-between mt-2">
+          <span className="text-[11px] text-orange">{Math.round(pct)}% used — upgrade for more</span>
+          <Link href="/dashboard/billing" className="text-[11px] text-indigo2 hover:underline">Upgrade →</Link>
+        </div>
+      )}
+      {!isWarn && <div className="text-[11px] text-text3 mt-2">{Math.round(pct)}% of monthly limit used</div>}
+    </div>
+  );
+}
+
+// ── Risk badge ────────────────────────────────────────────────────────────────
+
+function RiskBadge({ risk }: { risk: string }) {
+  const cfg = getRisk(risk);
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${cfg.text} ${cfg.bg} flex-shrink-0`}>
+      {cfg.label}
+    </span>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function DashboardClient({
+  user, repos, recentCommits, riskCounts, dailyStats, usage,
+}: Props) {
+  const [selectedCommit, setSelectedCommit] = useState<any>(null);
+  const [showAddRepo,    setShowAddRepo]     = useState(false);
+
+  // ── Stats derived from data ───────────────────────────────────────────────
+  const totalCommits = riskCounts.reduce((s, r) => s + r._count.riskLevel, 0);
+  const criticalCount = riskCounts.find(r => r.riskLevel === "CRITICAL")?._count.riskLevel ?? 0;
+  const highCount     = riskCounts.find(r => r.riskLevel === "HIGH")?._count.riskLevel ?? 0;
+  const safeCount     = riskCounts.find(r => r.riskLevel === "SAFE")?._count.riskLevel ?? 0;
+  const lowCount      = riskCounts.find(r => r.riskLevel === "LOW")?._count.riskLevel ?? 0;
+  const safeRate      = totalCommits > 0
+    ? Math.round(((safeCount + lowCount) / totalCommits) * 100)
+    : 0;
+
+  // ── Chart data ────────────────────────────────────────────────────────────
+  const chartData = dailyStats.map((d: any) => ({
+    date:     new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    critical: d.critical,
+    high:     d.high,
+    medium:   d.medium,
+    safe:     d.safe + d.low,
+    total:    d.totalCommits,
+  }));
+
+  const riskBarData = [
+    { label: "CRITICAL", count: criticalCount,                                                                       color: "#f43f5e" },
+    { label: "HIGH",     count: highCount,                                                                            color: "#f97316" },
+    { label: "MEDIUM",   count: riskCounts.find(r => r.riskLevel === "MEDIUM")?._count.riskLevel ?? 0,               color: "#eab308" },
+    { label: "LOW",      count: lowCount,                                                                             color: "#22d3ee" },
+    { label: "SAFE",     count: safeCount,                                                                            color: "#22c55e" },
+  ];
+
+  // ── Empty state ───────────────────────────────────────────────────────────
+  if (repos.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-6 animate-fade-up">
+        <div className="w-16 h-16 rounded-2xl bg-indigo/10 border border-indigo/20 flex items-center justify-center text-3xl">⬡</div>
         <div>
-          <h1 className="font-display text-xl font-bold text-textmain tracking-wider">OVERVIEW</h1>
-          <p className="text-dim text-xs mt-1 font-sans">
-            {repos.length} repo{repos.length !== 1 ? "s" : ""} monitored ·{" "}
-            <span className="text-green">{totalScanned} commits analyzed</span>
+          <h2 className="font-display text-xl font-bold text-text mb-2">No repositories yet</h2>
+          <p className="text-text3 text-sm max-w-sm">
+            Connect a GitHub repo and BugHunter will analyze every commit automatically.
           </p>
         </div>
         <button
           onClick={() => setShowAddRepo(true)}
-          className="flex items-center gap-2 bg-green/10 border border-green/40 hover:bg-green/20 text-green text-xs font-mono px-4 py-2 rounded transition-all tracking-widest"
+          className="flex items-center gap-2 bg-indigo hover:bg-indigo3 text-white font-semibold px-6 py-3 rounded-xl text-sm transition-all hover:shadow-glow-indigo"
         >
-          <span>⊕</span> ADD REPO
+          + Add your first repository
+        </button>
+        {showAddRepo && <AddRepoModal onClose={() => setShowAddRepo(false)} />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-up">
+
+      {/* ── Header ───────────────────────────────────────── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-text">Overview</h1>
+          <p className="text-text3 text-sm mt-0.5">
+            {repos.length} repo{repos.length !== 1 ? "s" : ""} monitored · live analysis
+          </p>
+        </div>
+        <button
+          onClick={() => setShowAddRepo(true)}
+          className="flex items-center gap-2 bg-indigo hover:bg-indigo3 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition-all hover:shadow-glow-indigo"
+        >
+          + Add Repo
         </button>
       </div>
 
-      {/* ── Stat cards ─────────────────────────────────── */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "COMMITS SCANNED",  value: totalScanned, color: "#c8d8e8", icon: "◈" },
-          { label: "BUGS PREDICTED",   value: bugsCaught,   color: "#ff3355", icon: "⚠" },
-          { label: "CRITICAL ISSUES",  value: critical,     color: "#ff3355", icon: "☠" },
-          { label: "SAFE DEPLOYS",     value: safe,         color: "#00ff88", icon: "✓" },
-        ].map(s => (
-          <div key={s.label}
-            className="bg-bg2 border border-border rounded-lg p-4 hover:border-border2 transition-colors"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-dim text-xs tracking-widest">{s.label}</span>
-              <span style={{ color: s.color }} className="text-sm">{s.icon}</span>
-            </div>
-            <div className="font-display text-3xl font-black" style={{ color: s.color }}>
-              {s.value.toLocaleString()}
-            </div>
-          </div>
-        ))}
+      {/* ── Stat cards ───────────────────────────────────── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard label="Total commits"   value={totalCommits.toLocaleString()} sub="all time"           accent="text-text"   />
+        <StatCard label="Critical issues" value={criticalCount}                  sub="need attention"     accent="text-red"    />
+        <StatCard label="High risk"       value={highCount}                      sub="review recommended" accent="text-orange" />
+        <StatCard label="Safe rate"       value={`${safeRate}%`}                 sub="safe + low commits" accent="text-green"  />
       </div>
 
-      {/* ── Charts row ─────────────────────────────────── */}
-      <div className="grid grid-cols-3 gap-4">
-        {/* Area chart */}
-        <div className="col-span-2 bg-bg2 border border-border rounded-lg p-4">
-          <div className="text-[10px] text-dim tracking-widest mb-4">── 7-DAY RISK TREND</div>
-          {areaData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={160}>
-              <AreaChart data={areaData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+      {/* ── Usage meters ─────────────────────────────────── */}
+      <div className="grid grid-cols-2 gap-4">
+        <UsageMeter
+          label="Repositories"
+          used={usage.repos}
+          limit={usage.repoLimit}
+          plan={usage.plan}
+        />
+        <UsageMeter
+          label="Commits analyzed this month"
+          used={usage.commits}
+          limit={usage.commitLimit}
+          plan={usage.plan}
+        />
+      </div>
+
+      {/* ── Charts ───────────────────────────────────────── */}
+      {chartData.length > 0 && (
+        <div className="grid lg:grid-cols-3 gap-4">
+          {/* Area chart — 7 day trend */}
+          <div className="lg:col-span-2 bg-bg2 border border-border rounded-2xl p-5">
+            <div className="text-sm font-semibold text-text mb-4">7-day commit trend</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <AreaChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="gcrit" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#ff3355" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ff3355" stopOpacity={0}   />
+                  <linearGradient id="gSafe"     x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0}   />
                   </linearGradient>
-                  <linearGradient id="ghigh" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#ff8800" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ff8800" stopOpacity={0}   />
-                  </linearGradient>
-                  <linearGradient id="gsafe" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor="#00ff88" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#00ff88" stopOpacity={0}   />
+                  <linearGradient id="gCritical" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#f43f5e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#f43f5e" stopOpacity={0}   />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date" tick={{ fill: "#5a7090", fontSize: 10 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#5a7090", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" />
+                <XAxis dataKey="date" tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
                 <Tooltip
-                  contentStyle={{ background: "#0b0f17", border: "1px solid #243044", borderRadius: 4, fontSize: 11 }}
-                  labelStyle={{ color: "#c8d8e8" }}
+                  contentStyle={{ background: "#0d1220", border: "1px solid #1e2d45", borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: "#94a3b8" }}
                 />
-                <Area type="monotone" dataKey="critical" stroke="#ff3355" fill="url(#gcrit)" strokeWidth={2} />
-                <Area type="monotone" dataKey="high"     stroke="#ff8800" fill="url(#ghigh)" strokeWidth={2} />
-                <Area type="monotone" dataKey="safe"     stroke="#00ff88" fill="url(#gsafe)" strokeWidth={2} />
+                <Area type="monotone" dataKey="safe"     stroke="#22c55e" fill="url(#gSafe)"     strokeWidth={2} name="Safe/Low" />
+                <Area type="monotone" dataKey="critical" stroke="#f43f5e" fill="url(#gCritical)" strokeWidth={2} name="Critical" />
               </AreaChart>
             </ResponsiveContainer>
-          ) : (
-            <div className="h-40 flex items-center justify-center text-dim text-xs">
-              No data yet — push some commits
+          </div>
+
+          {/* Bar chart — risk distribution */}
+          <div className="bg-bg2 border border-border rounded-2xl p-5">
+            <div className="text-sm font-semibold text-text mb-4">Risk distribution</div>
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={riskBarData} margin={{ top: 0, right: 0, left: -24, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e2d45" vertical={false} />
+                <XAxis dataKey="label" tick={{ fill: "#475569", fontSize: 10 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip
+                  contentStyle={{ background: "#0d1220", border: "1px solid #1e2d45", borderRadius: 8, fontSize: 12 }}
+                  cursor={{ fill: "rgba(99,102,241,0.05)" }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} name="Commits">
+                  {riskBarData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* ── Recent commits ────────────────────────────────── */}
+      <div className="bg-bg2 border border-border rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="text-sm font-semibold text-text">Recent commits</div>
+          <Link
+            href="/dashboard/commits"
+            className="text-xs text-indigo2 hover:text-indigo transition-colors"
+          >
+            View all →
+          </Link>
+        </div>
+        <div className="divide-y divide-border">
+          {recentCommits.length === 0 && (
+            <div className="px-5 py-10 text-center text-text3 text-sm">
+              No commits yet. Push to a tracked repo to start.
             </div>
           )}
-        </div>
-
-        {/* Pie chart */}
-        <div className="bg-bg2 border border-border rounded-lg p-4">
-          <div className="text-[10px] text-dim tracking-widest mb-4">── RISK BREAKDOWN</div>
-          {pieData.length > 0 ? (
-            <>
-              <ResponsiveContainer width="100%" height={120}>
-                <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={35} outerRadius={55}
-                    dataKey="value" strokeWidth={0}
-                  >
-                    {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="space-y-1.5 mt-2">
-                {pieData.map(d => (
-                  <div key={d.name} className="flex items-center justify-between text-[10px]">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ background: d.color }} />
-                      <span className="text-dim">{d.name}</span>
-                    </div>
-                    <span style={{ color: d.color }} className="font-mono">{d.value}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="h-40 flex items-center justify-center text-dim text-xs">No data yet</div>
-          )}
+          {recentCommits.slice(0, 10).map((c: any) => (
+            <button
+              key={c.id}
+              onClick={() => setSelectedCommit(c)}
+              className="w-full flex items-center gap-4 px-5 py-3.5 hover:bg-bg3 transition-colors text-left group"
+            >
+              <span className="font-mono text-[11px] text-text3 w-14 flex-shrink-0 group-hover:text-indigo2 transition-colors">
+                {shortSha(c.sha)}
+              </span>
+              <span className="flex-1 text-sm text-text2 truncate group-hover:text-text transition-colors">
+                {c.message}
+              </span>
+              <span className="text-[11px] text-text3 flex-shrink-0 hidden sm:block">
+                {c.repository?.fullName}
+              </span>
+              <span className="text-[11px] text-text3 flex-shrink-0 w-16 text-right">
+                {timeAgo(c.createdAt)}
+              </span>
+              <RiskBadge risk={c.riskLevel} />
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ── Commit feed ────────────────────────────────── */}
-      <div className="bg-bg2 border border-border rounded-lg">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border">
-          <div className="text-[10px] text-dim tracking-widest">── RECENT COMMITS</div>
-          <div className="flex gap-2">
-            {["ALL", ...RISK_ORDER].map(f => {
-              const cfg = f === "ALL" ? null : getRiskConfig(f);
-              return (
-                <button
-                  key={f}
-                  onClick={() => setFilter(f)}
-                  className="text-[10px] px-2.5 py-1 rounded border transition-all font-mono tracking-wider"
-                  style={{
-                    borderColor: filter === f ? (cfg?.color || "#00ff88") : "#1a2535",
-                    color:       filter === f ? (cfg?.color || "#00ff88") : "#5a7090",
-                    background:  filter === f ? (cfg?.bg || "rgba(0,255,136,0.08)") : "transparent",
-                  }}
-                >{f}</button>
-              );
-            })}
-          </div>
+      {/* ── Repos overview ────────────────────────────────── */}
+      <div className="bg-bg2 border border-border rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <div className="text-sm font-semibold text-text">Monitored repositories</div>
+          <Link href="/dashboard/repos" className="text-xs text-indigo2 hover:text-indigo transition-colors">
+            Manage →
+          </Link>
         </div>
-
         <div className="divide-y divide-border">
-          {filteredCommits.length === 0 && (
-            <div className="py-12 text-center text-dim text-xs font-sans">
-              {commits.length === 0
-                ? "Add a repository and push a commit to get started"
-                : "No commits match this filter"}
-            </div>
-          )}
-          {filteredCommits.map((c: any) => {
-            const cfg = getRiskConfig(c.riskLevel);
-            const bugs = Array.isArray(c.predictedBugs) ? c.predictedBugs : [];
+          {repos.map((r: any) => {
+            const lastCommit = r.commits?.[0];
+            const cfg        = lastCommit ? getRisk(lastCommit.riskLevel) : null;
             return (
-              <div
-                key={c.id}
-                className="flex items-start gap-4 px-5 py-4 hover:bg-bg3 cursor-pointer transition-colors animate-slide-in"
-                onClick={() => setSelectedCommit(c)}
-              >
-                {/* Risk badge */}
-                <div
-                  className="mt-0.5 flex-shrink-0 text-[9px] font-bold px-2 py-1 rounded border tracking-widest font-mono"
-                  style={{
-                    color: cfg.color, background: cfg.bg, borderColor: cfg.border,
-                    animation: cfg.pulse ? "pulse-red 1.5s infinite" : "none",
-                  }}
-                >
-                  {c.riskLevel}
-                </div>
-
-                {/* Content */}
+              <div key={r.id} className="flex items-center gap-4 px-5 py-4">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-1">
-                    <code className="text-[10px] text-blue bg-bg px-1.5 py-0.5 rounded border border-border">
-                      {shortSha(c.sha)}
-                    </code>
-                    <span className="text-dim text-[10px]">{c.repository?.fullName}</span>
-                    <span className="text-dim text-[10px] ml-auto">{timeAgo(c.createdAt)}</span>
-                  </div>
-                  <p className="text-sm text-textmain font-sans truncate">{c.message}</p>
-                  <div className="flex items-center gap-4 mt-1 text-[10px] text-dim">
-                    <span>{c.authorName}</span>
-                    <span>{c.filesChanged} files</span>
-                    {bugs.length > 0 && (
-                      <span style={{ color: cfg.color }}>
-                        {bugs.length} issue{bugs.length !== 1 ? "s" : ""} detected
-                      </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-text truncate">{r.fullName}</span>
+                    {r.private && (
+                      <span className="text-[10px] text-text3 border border-border2 px-1.5 py-0.5 rounded-full">private</span>
                     )}
                   </div>
+                  <div className="text-xs text-text3 mt-0.5">
+                    {r._count.commits} commit{r._count.commits !== 1 ? "s" : ""}
+                    {r.language && ` · ${r.language}`}
+                  </div>
                 </div>
-
-                <div className="text-dim text-xs self-center">›</div>
+                {cfg && lastCommit && (
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-xs text-text3 hidden sm:block">{timeAgo(lastCommit.createdAt)}</span>
+                    <RiskBadge risk={lastCommit.riskLevel} />
+                  </div>
+                )}
+                {!lastCommit && (
+                  <span className="text-xs text-text3 flex-shrink-0">No commits yet</span>
+                )}
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── Repos quick list ───────────────────────────── */}
-      {repos.length > 0 && (
-        <div className="bg-bg2 border border-border rounded-lg">
-          <div className="px-5 py-3 border-b border-border text-[10px] text-dim tracking-widest">
-            ── MONITORED REPOSITORIES
-          </div>
-          <div className="divide-y divide-border">
-            {repos.map((r: any) => {
-              const lastCommit = r.commits?.[0];
-              const cfg = lastCommit ? getRiskConfig(lastCommit.riskLevel) : null;
-              return (
-                <div key={r.id} className="flex items-center justify-between px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <span className="text-green text-xs">⬡</span>
-                    <div>
-                      <div className="text-sm text-textmain font-sans">{r.fullName}</div>
-                      <div className="text-[10px] text-dim">{r.language || "Unknown"} · {r._count.commits} commits</div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {cfg && (
-                      <span className="text-[9px] border px-2 py-0.5 rounded font-mono"
-                        style={{ color: cfg.color, borderColor: cfg.border }}>
-                        {lastCommit.riskLevel}
-                      </span>
-                    )}
-                    <span className="text-[10px] text-dim">
-                      {r.webhookActive ? (
-                        <span className="text-green">● WEBHOOK LIVE</span>
-                      ) : (
-                        <span className="text-yellow">○ POLLING</span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ── Modals ─────────────────────────────────────── */}
-      {showAddRepo && <AddRepoModal onClose={() => setShowAddRepo(false)} />}
+      {/* ── Modals ───────────────────────────────────────── */}
       {selectedCommit && (
         <CommitDetail commit={selectedCommit} onClose={() => setSelectedCommit(null)} />
+      )}
+      {showAddRepo && (
+        <AddRepoModal onClose={() => setShowAddRepo(false)} />
       )}
     </div>
   );
