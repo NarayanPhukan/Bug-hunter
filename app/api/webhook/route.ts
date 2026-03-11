@@ -15,7 +15,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-  // FIX 3: Rate limit by IP (GitHub can send many webhooks from a burst push)
   const rateLimitRes = await checkRateLimit(req, "webhook");
   if (rateLimitRes) return rateLimitRes;
 
@@ -23,7 +22,6 @@ export async function POST(req: NextRequest) {
   const sig     = req.headers.get("x-hub-signature-256") ?? "";
   const event   = req.headers.get("x-github-event")      ?? "";
 
-  // Verify HMAC-SHA256 signature (timing-safe)
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
   if (!secret) {
     console.error("[webhook] GITHUB_WEBHOOK_SECRET not configured");
@@ -34,12 +32,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  // Only handle push events
   if (event !== "push") {
     return NextResponse.json({ ok: true, skipped: event });
   }
 
-  // FIX 4: Validate payload with Zod
   let rawPayload: unknown;
   try {
     rawPayload = JSON.parse(rawBody);
@@ -53,7 +49,6 @@ export async function POST(req: NextRequest) {
   const branch   = payload.ref.replace("refs/heads/", "");
   const repoGhId = payload.repository.id;
 
-  // Find repo + its owner's user id in one query
   const repo = await prisma.repository.findUnique({
     where:   { githubId: repoGhId },
     include: { user: { select: { id: true } } },
@@ -64,33 +59,29 @@ export async function POST(req: NextRequest) {
   }
 
   const dispatched: string[] = [];
+  const commits = payload.commits ?? [];
 
-  for (const ghCommit of payload.commits.slice(0, 10)) {
-    // Skip merge commits
+  for (const ghCommit of commits.slice(0, 10)) {
     if (ghCommit.message.startsWith("Merge ")) continue;
 
-    // FIX 8: Idempotency — upsert so duplicate webhook deliveries are harmless
     const commit = await prisma.commit.upsert({
       where:  { repositoryId_sha: { repositoryId: repo.id, sha: ghCommit.id } },
       create: {
         repositoryId: repo.id,
         sha:          ghCommit.id,
         message:      ghCommit.message.slice(0, 500),
-        authorName:   ghCommit.author?.name  ?? "Unknown",
-        authorEmail:  ghCommit.author?.email ?? "",
+        authorName:   ghCommit.author?.name     ?? "Unknown",
+        authorEmail:  ghCommit.author?.email    ?? "",
         authorLogin:  ghCommit.author?.username ?? null,
         branch,
         url:          ghCommit.url ?? null,
         riskLevel:    "PENDING",
       },
-      // If it already exists and is analyzed, don't re-queue
       update: {},
     });
 
-    // Don't re-analyze if already done
     if (commit.riskLevel !== "PENDING") continue;
 
-    // FIX 6: Dispatch durable background job via Inngest
     await inngest.send({
       name: "commit/analyze",
       data: {
