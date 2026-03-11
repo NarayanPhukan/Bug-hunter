@@ -1,18 +1,29 @@
 // app/dashboard/commits/page.tsx
-import { auth }   from "@/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import CommitsClient from "@/components/dashboard/CommitsClient";
 
 export const dynamic = "force-dynamic";
 
-export default async function CommitsPage({ searchParams }: { searchParams: { repoId?: string; risk?: string; page?: string }}) {
+export default async function CommitsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    repoId?: string;
+    risk?: string;
+    page?: string;
+  }>;
+}) {
+
+  const params = await searchParams;
+
   const session = await auth();
   if (!session?.user?.id) return null;
 
-  const page   = parseInt(searchParams.page || "1");
+  const page   = parseInt(params.page || "1");
   const limit  = 25;
-  const repoId = searchParams.repoId;
-  const risk   = searchParams.risk;
+  const repoId = params.repoId;
+  const risk   = params.risk;
 
   const where: any = {
     repository: { userId: session.user.id, active: true },
@@ -28,10 +39,21 @@ export default async function CommitsPage({ searchParams }: { searchParams: { re
       take: limit,
       include: {
         repository: { select: { fullName: true, owner: true, name: true } },
-        files: { select: { filename: true, status: true, additions: true, deletions: true, patch: true }, take: 10 },
+        files: {
+          select: {
+            filename: true,
+            status: true,
+            additions: true,
+            deletions: true,
+            patch: true,
+          },
+          take: 10,
+        },
       },
     }),
+
     prisma.commit.count({ where }),
+
     prisma.repository.findMany({
       where: { userId: session.user.id, active: true },
       select: { id: true, fullName: true },
