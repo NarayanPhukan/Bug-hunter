@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
   if (error) return error;
 
   const { repoId, risk, page } = query;
+  const safePage = page ?? 1;
   const limit = 20;
 
   if (repoId) {
@@ -48,7 +49,7 @@ export async function GET(req: NextRequest) {
     prisma.commit.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      skip: (page - 1) * limit,
+      skip: (safePage - 1) * limit,
       take: limit,
       include: {
         repository: { select: { fullName: true, owner: true, name: true } },
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     commits,
     total,
-    page,
+    page: safePage,
     pages: Math.ceil(total / limit),
   });
 }
